@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="ta">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>அம்பு வழி</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+Tamil:wght@400;700&display=swap">
+<style>
+:root{--bg:#E8EEF6;--ink:#1B2540;--dot:#B9C4D8;--panel:#FFFFFF;--accent:#C23B3B;--a1:#E8A317;--a2:#C23B3B;--a3:#2F8A5B;--a4:#3B5BDB;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#151C30;--ink:#EEF2FB;--dot:#34405F;--panel:#222C47;--a1:#F2B632;--a2:#E5585A;--a3:#43B27A;--a4:#6F8CFF}}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--ink);font-family:"Noto Sans Tamil",system-ui,sans-serif;display:flex;flex-direction:column;align-items:center;padding:12px 14px 16px}
+h1{font-size:1.25rem;margin:4px 0 2px}
+.bar{width:100%;max-width:460px;display:flex;align-items:center;justify-content:space-between;gap:8px;margin:6px 0}
+.lv{display:flex;align-items:center;gap:6px;font-weight:700}
+.hearts{font-size:1.3rem;letter-spacing:2px}
+button{font:inherit;color:var(--ink);background:var(--panel);border:2px solid var(--ink);border-radius:12px;padding:8px 14px;min-height:44px;cursor:pointer}
+button:focus-visible{outline:3px solid var(--a4);outline-offset:2px}
+button:disabled{opacity:.4}
+button.go{background:var(--ink);color:var(--bg)}
+.sm{padding:4px 10px;min-height:36px}
+#wrap{width:100%;max-width:460px;aspect-ratio:1;background:var(--panel);border-radius:18px;padding:10px;position:relative;border:3px double var(--a1);outline:2px dashed var(--a2);outline-offset:-9px}
+svg{width:100%;height:100%;display:block;touch-action:manipulation}
+.a{cursor:pointer}
+.a .ln{fill:none;stroke-width:.3;stroke-linecap:round;stroke-linejoin:round}
+.hit{fill:none;stroke:transparent;stroke-width:.8;stroke-linecap:round;pointer-events:stroke}
+.hint .ln{animation:blink .5s 4}
+@keyframes blink{50%{stroke-width:.5}}
+.bad{animation:shake .35s}
+.bad .ln,.bad polygon{stroke:var(--accent)!important;fill:var(--accent)!important}
+@keyframes shake{25%{transform:translate(-.08px,0)}75%{transform:translate(.08px,0)}}
+.row{display:flex;flex-wrap:wrap;justify-content:center;gap:10px;margin-top:12px}
+.msg{min-height:1.6em;margin:8px 0 0;font-size:.95rem;text-align:center}
+#ov{position:absolute;inset:0;background:color-mix(in srgb,var(--panel) 92%,transparent);border-radius:18px;display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center;padding:20px}
+#ov.on{display:flex}
+#ov h2{margin:0;font-size:1.6rem}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<h1>அம்பு வழி</h1>
+<p style="margin:0;font-size:.85rem;opacity:.75">புள்ளிக் கோலத்தைச் சீர்செய்யுங்கள்</p>
+<div class="bar">
+  <div class="lv"><button class="sm" id="prev" aria-label="முந்தைய நிலை">‹</button><span id="lvl"></span><button class="sm" id="next" aria-label="அடுத்த நிலை">›</button></div>
+  <div class="hearts" id="hearts" aria-live="polite"></div>
+</div>
+<div id="wrap"><svg id="bd" xmlns="http://www.w3.org/2000/svg"></svg>
+  <div id="ov"><h2 id="ot"></h2><p id="os" style="margin:0"></p><button class="go" id="ob"></button></div>
+</div>
+<p class="msg" id="msg">பாதை திறந்த அம்பைத் தட்டுங்கள்</p>
+<div class="row"><button id="hint">💡 குறிப்பு (<span id="hc">3</span>)</button><button id="undo">↶ பின்னே</button><button id="rs">↻ மீண்டும்</button><button id="snd" aria-label="ஒலி">🔊</button></div>
+<script>
+(function(){
+var NS="http://www.w3.org/2000/svg",DIRS=[[-1,0],[1,0],[0,-1],[0,1]],COL=["--a1","--a2","--a3","--a4"];
+var $=function(i){return document.getElementById(i)};
+var best=1;try{best=parseInt(localStorage.getItem("ambu-best"))||1}catch(e){}
+var level=best,N,arrows,lives,hints,busy,hist=[],AC,mute=false;
+function beep(ok){if(mute)return;try{AC=AC||new (window.AudioContext||window.webkitAudioContext)();var o=AC.createOscillator(),g=AC.createGain(),t=AC.currentTime;o.type=ok?"sine":"square";o.frequency.setValueAtTime(ok?700:160,t);if(ok)o.frequency.exponentialRampToValueAtTime(180,t+.25);g.gain.setValueAtTime(.12,t);g.gain.exponentialRampToValueAtTime(.001,t+.25);o.connect(g);g.connect(AC.destination);o.start(t);o.stop(t+.26)}catch(e){}if(!ok&&navigator.vibrate){try{navigator.vibrate(60)}catch(e){}}}
+function rng(s){return function(){s|=0;s=s+0x6D2B79F5|0;var t=Math.imul(s^s>>>15,1|s);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+function size(l){return Math.min(5+Math.floor((l-1)/2),11)}
+function occ(list,skip){var m={};list.forEach(function(a){if(a!==skip)a.cells.forEach(function(c){m[c[0]+","+c[1]]=1})});return m}
+function rayFree(a,m){var h=a.cells[a.cells.length-1],r=h[0]+a.d[0],c=h[1]+a.d[1];
+  while(r>=0&&c>=0&&r<N&&c<N){if(m[r+","+c])return false;r+=a.d[0];c+=a.d[1]}return true}
+function gen1(l,k){
+  var R=rng(l*7919+13+k*101),n=size(l),list=[],m={},target=Math.round(n*n*(0.30+Math.min(l,30)*0.006)),tries=0,tp=Math.min(.75,l*.15);
+  N=n;
+  while(list.length<target&&tries++<900){
+    var len=2+Math.floor(R()*Math.min(6,n)),r=Math.floor(R()*n),c=Math.floor(R()*n),cells=[[r,c]],own={},pd=null;
+    if(m[r+","+c])continue;
+    own[r+","+c]=1;
+    for(var i=1;i<len;i++){
+      var opts=[],q,dd;
+      for(q=0;q<4;q++){dd=DIRS[q];if(pd&&dd[0]===-pd[0]&&dd[1]===-pd[1])continue;var nr=r+dd[0],nc=c+dd[1];if(nr<0||nc<0||nr>=n||nc>=n||m[nr+","+nc]||own[nr+","+nc])continue;opts.push(dd)}
+      if(!opts.length)break;
+      var d=opts[Math.floor(R()*opts.length)];
+      if(pd&&R()>tp){var st=null;for(q=0;q<opts.length;q++)if(opts[q]===pd)st=pd;if(st)d=st;else if(tp===0)break}
+      pd=d;r+=d[0];c+=d[1];own[r+","+c]=1;cells.push([r,c]);
+    }
+    if(cells.length<2)continue;
+    var a={cells:cells,d:pd,col:COL[list.length%4]};
+    if(!rayFree(a,m)||!rayFree(a,own))continue;
+    cells.forEach(function(k){m[k[0]+","+k[1]]=1});list.push(a);
+  }
+  list.forEach(function(a,i){a.id=i});
+  return list;
+}
+function tn(n){return String(n).replace(/\d/g,function(d){return "௦௧௨௩௪௫௬௭௮௯".charAt(d)})}
+var PR=["அருமை!","சபாஷ்!","நல்லது!","மிக நன்று!"];
+function rounds(list){var rem=list.slice(),n=0;while(rem.length){var rm=rem.filter(function(a){return rayFree(a,occ(rem,a))});if(!rm.length)return 0;rem=rem.filter(function(a){return rm.indexOf(a)<0});n++}return n}
+function gen(l){var best=null,bs=-1;for(var k=0;k<14;k++){var g=gen1(l,k),sc=rounds(g)*100+g.length;if(sc>bs){bs=sc;best=g}}return best}
+function el(t,at,p){var e=document.createElementNS(NS,t);for(var k in at)e.setAttribute(k,at[k]);if(p)p.appendChild(e);return e}
+function trail(a){
+  var t=a.cells.map(function(c){return[c[1]+.5,c[0]+.5]}),h=t[t.length-1],ex=N+a.cells.length+2;
+  for(var k=1;k<=ex;k++)t.push([h[0]+a.d[1]*k,h[1]+a.d[0]*k]);
+  return t;
+}
+function pt(tr,x){var i=Math.min(Math.floor(x),tr.length-1),f=x-i,p=tr[i],q=tr[i+1]||p;return[p[0]+(q[0]-p[0])*f,p[1]+(q[1]-p[1])*f]}
+function render(a,p){
+  var tr=a.tr,L=a.cells.length-1,pts=[pt(tr,p)],k,u=[a.d[1],a.d[0]];
+  for(k=Math.floor(p)+1;k<p+L;k++)pts.push(tr[k]);
+  var E=pt(tr,p+L);pts.push(E);
+  var line=pts.slice(0,-1).concat([[E[0]-u[0]*.1,E[1]-u[1]*.1]]);
+  var dd="M"+line.map(function(q){return q[0]+" "+q[1]}).join(" L ");
+  a.ln.setAttribute("d",dd);a.hit.setAttribute("d",dd);
+  a.tail.setAttribute("cx",pts[0][0]);a.tail.setAttribute("cy",pts[0][1]);
+  var bx=E[0]-u[0]*.02,by=E[1]-u[1]*.02,px=-u[1]*.3,py=u[0]*.3;
+  a.hd.setAttribute("points",(E[0]+u[0]*.46)+","+(E[1]+u[1]*.46)+" "+(bx+px)+","+(by+py)+" "+(bx-px)+","+(by-py));
+}
+function draw(){
+  var s=$("bd");s.innerHTML="";s.setAttribute("viewBox","0 0 "+N+" "+N);
+  var r,c;
+  for(r=0;r<N;r++)for(c=0;c<N;c++)el("circle",{cx:c+.5,cy:r+.5,r:.07,fill:"var(--dot)"},s);
+  for(r=0;r<=N;r++)for(c=0;c<=N;c++)el("circle",{cx:c,cy:r,r:.025,fill:"var(--dot)"},s);
+  arrows.forEach(function(a){
+    var g=el("g",{"class":"a","data-id":a.id},s),col="var("+a.col+")";
+    a.g=g;a.tr=trail(a);
+    a.ln=el("path",{"class":"ln",stroke:col},g);
+    a.tail=el("circle",{r:.07,fill:"var(--panel)"},g);
+    a.hd=el("polygon",{fill:col,stroke:col,"stroke-width":.06,"stroke-linejoin":"round"},g);
+    a.hit=el("path",{"class":"hit"},g);
+    render(a,0);
+    g.addEventListener("click",function(){tap(a,g)});
+  });
+}
+function fly(a){
+  a.g.style.pointerEvents="none";
+  var pm=a.tr.length-1-(a.cells.length-1),dur=pm/16*1000,t0=null;
+  function f(ts){
+    if(arrows.indexOf(a)>=0)return;
+    if(t0===null)t0=ts;
+    var k=Math.min((ts-t0)/dur,1);render(a,k*pm);
+    if(k<1)requestAnimationFrame(f);else if(a.g.parentNode)a.g.parentNode.removeChild(a.g);
+  }
+  requestAnimationFrame(f);return dur;
+}
+function hud(){
+  var h="";for(var i=0;i<3;i++)h+=i<lives?"❤️":"🖤";
+  $("hearts").textContent=h;$("lvl").textContent="நிலை "+tn(level);$("hc").textContent=tn(hints);
+  $("prev").disabled=level<=1;$("next").disabled=level>=best;
+}
+function say(t){$("msg").textContent=t}
+function start(l){
+  level=l;arrows=gen(l);lives=3;hints=level<5?3:level<12?2:1;busy=false;hist=[];
+  $("ov").classList.remove("on");draw();hud();say("பாதை திறந்த அம்பைத் தட்டுங்கள்");
+}
+function tap(a,g){
+  if(lives<=0||arrows.indexOf(a)<0)return;
+  if(rayFree(a,occ(arrows,a))){
+    hist.push(a);arrows.splice(arrows.indexOf(a),1);beep(true);
+    var dur=fly(a);
+    say(PR[Math.floor(Math.random()*PR.length)]);
+    if(!arrows.length)setTimeout(win,dur+150);
+  }else{
+    lives--;hud();beep(false);g.classList.remove("bad");void g.getBoundingClientRect();g.classList.add("bad");
+    say("இந்த அம்பின் பாதையில் தடை உள்ளது");
+    if(lives<=0)setTimeout(lose,500);
+  }
+}
+function win(){if(arrows.length)return;
+  if(level>=best){best=level+1;try{localStorage.setItem("ambu-best",best)}catch(e){}}
+  $("ot").textContent="வெற்றி! 🪔";$("os").textContent="மீதமுள்ள உயிர்கள்: "+tn(lives)+" / ௩";
+  $("ob").textContent="அடுத்த நிலை";$("ob").onclick=function(){start(level+1)};$("ov").classList.add("on");hud();
+}
+function lose(){
+  $("ot").textContent="உயிர்கள் தீர்ந்தன";$("os").textContent="சரியான வரிசையைத் திட்டமிட்டு மீண்டும் முயலுங்கள்";
+  $("ob").textContent="மீண்டும் முயல்";$("ob").onclick=function(){start(level)};$("ov").classList.add("on");
+}
+$("hint").onclick=function(){
+  if(hints<=0||lives<=0)return;
+  var a=arrows.filter(function(x){return rayFree(x,occ(arrows,x))})[0];if(!a)return;
+  hints--;hud();var g=document.querySelector('.a[data-id="'+a.id+'"]');
+  g.classList.remove("hint");void g.getBoundingClientRect();g.classList.add("hint");say("மின்னும் அம்பைத் தட்டுங்கள்");
+};
+$("rs").onclick=function(){start(level)};
+$("undo").onclick=function(){if(!hist.length||lives<=0||$("ov").classList.contains("on"))return;arrows.push(hist.pop());arrows.sort(function(x,y){return x.id-y.id});draw();say("ஒரு படி பின்னே")};
+$("snd").onclick=function(){mute=!mute;this.textContent=mute?"🔇":"🔊"};
+$("prev").onclick=function(){if(level>1)start(level-1)};
+$("next").onclick=function(){if(level<best)start(level+1)};
+start(level);
+})();
+</script>
+</body>
+</html>
